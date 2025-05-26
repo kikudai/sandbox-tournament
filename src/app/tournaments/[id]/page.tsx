@@ -43,6 +43,7 @@ export default function TournamentDetail() {
   const [selectedPositions, setSelectedPositions] = useState<Record<string, string>>({})
   const [isSettingWinner, setIsSettingWinner] = useState<string | null>(null)
   const [finalWinner, setFinalWinner] = useState<Participant | null>(null)
+  const [secondPlace, setSecondPlace] = useState<Participant | null>(null)
   const [thirdPlace, setThirdPlace] = useState<Participant | null>(null)
 
   useEffect(() => {
@@ -173,6 +174,16 @@ export default function TournamentDetail() {
       return
     }
 
+    // 決勝戦の勝者・敗者をセット
+    const finalMatch = currentRoundMatches.find((m: any) => m.matchType === 'normal')
+    if (finalMatch && currentRoundMatches.length === 1) {
+      const winner = finalMatch.player1.id === finalMatch.winnerId ? finalMatch.player1 : finalMatch.player2
+      const loser = finalMatch.player1.id === finalMatch.winnerId ? finalMatch.player2 : finalMatch.player1
+      setFinalWinner(winner)
+      setSecondPlace(loser)
+      return
+    }
+
     const winners = currentRoundMatches
       .filter((m: any) => m.matchType === 'normal')
       .map((m: any) => m.player1.id === m.winnerId ? m.player1 : m.player2)
@@ -204,8 +215,13 @@ export default function TournamentDetail() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name}</h1>
           {finalWinner && (
-            <div className="mb-4 p-4 bg-yellow-100 rounded text-xl font-bold text-center text-yellow-800">
-              優勝者: {finalWinner.name}
+            <div className="mb-2 p-4 bg-yellow-100 rounded text-xl font-bold text-center text-yellow-800">
+              1位（優勝）: {finalWinner.name}
+            </div>
+          )}
+          {secondPlace && (
+            <div className="mb-2 p-4 bg-gray-200 rounded text-xl font-bold text-center text-gray-800">
+              2位（準優勝）: {secondPlace.name}
             </div>
           )}
           {thirdPlace && (
