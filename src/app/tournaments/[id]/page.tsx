@@ -47,6 +47,12 @@ export default function TournamentDetail() {
   const [thirdPlace, setThirdPlace] = useState<Participant | null>(null)
   const [roundAssignments, setRoundAssignments] = useState<{ round: number, matches: { player1Id: string | null, player2Id: string | null }[] }>({ round: 1, matches: [] })
   const [showAssignment, setShowAssignment] = useState(false)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editName, setEditName] = useState(tournament?.name || "")
+  const [isEditingDesc, setIsEditingDesc] = useState(false)
+  const [editDesc, setEditDesc] = useState(tournament?.description || "")
+  const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null)
+  const [editParticipantName, setEditParticipantName] = useState("")
 
   useEffect(() => {
     fetchTournament()
@@ -243,6 +249,41 @@ export default function TournamentDetail() {
     })
   }
 
+  const handleSaveName = async () => {
+    await fetch(`/api/tournaments/${tournament.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName }),
+    })
+    setIsEditingName(false)
+    fetchTournament()
+  }
+
+  const handleSaveDesc = async () => {
+    await fetch(`/api/tournaments/${tournament.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: editDesc }),
+    })
+    setIsEditingDesc(false)
+    fetchTournament()
+  }
+
+  const handleEditParticipant = (id: string, name: string) => {
+    setEditingParticipantId(id)
+    setEditParticipantName(name)
+  }
+
+  const handleSaveParticipant = async (id: string) => {
+    await fetch(`/api/participants/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editParticipantName }),
+    })
+    setEditingParticipantId(null)
+    fetchTournament()
+  }
+
   if (isLoading) {
     return <div className="p-8">読み込み中...</div>
   }
@@ -255,7 +296,34 @@ export default function TournamentDetail() {
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name}</h1>
+          {/* トーナメント名編集 */}
+          {isEditingName ? (
+            <div className="flex gap-2 mb-2">
+              <input value={editName} onChange={e => setEditName(e.target.value)} className="border rounded px-2 py-1 flex-1" />
+              <button onClick={handleSaveName} className="bg-green-500 text-white px-2 rounded">保存</button>
+              <button onClick={() => setIsEditingName(false)} className="bg-gray-300 px-2 rounded">キャンセル</button>
+            </div>
+          ) : (
+            <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+              {tournament.name}
+              <button onClick={() => { setIsEditingName(true); setEditName(tournament.name) }} className="text-sm text-blue-500 underline">編集</button>
+            </h1>
+          )}
+          {/* 説明編集 */}
+          {isEditingDesc ? (
+            <div className="flex gap-2 mb-4">
+              <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="border rounded px-2 py-1 flex-1" />
+              <button onClick={handleSaveDesc} className="bg-green-500 text-white px-2 rounded">保存</button>
+              <button onClick={() => setIsEditingDesc(false)} className="bg-gray-300 px-2 rounded">キャンセル</button>
+            </div>
+          ) : (
+            tournament.description && (
+              <p className="text-gray-600 mb-6 flex items-center gap-2">
+                {tournament.description}
+                <button onClick={() => { setIsEditingDesc(true); setEditDesc(tournament.description || "") }} className="text-sm text-blue-500 underline">編集</button>
+              </p>
+            )
+          )}
           {finalWinner && (
             <div className="mb-2 p-4 bg-yellow-100 rounded text-xl font-bold text-center text-yellow-800">
               1位（優勝）: {finalWinner.name}
@@ -270,9 +338,6 @@ export default function TournamentDetail() {
             <div className="mb-4 p-4 bg-gray-100 rounded text-xl font-bold text-center text-gray-800">
               3位: {thirdPlace.name}
             </div>
-          )}
-          {tournament.description && (
-            <p className="text-gray-600 mb-6">{tournament.description}</p>
           )}
 
           <div className="mt-8">
@@ -303,7 +368,18 @@ export default function TournamentDetail() {
                   key={participant.id}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-md"
                 >
-                  <span className="text-gray-900">{participant.name}</span>
+                  {editingParticipantId === participant.id ? (
+                    <>
+                      <input value={editParticipantName} onChange={e => setEditParticipantName(e.target.value)} className="border rounded px-2 py-1 mr-2" />
+                      <button onClick={() => handleSaveParticipant(participant.id)} className="bg-green-500 text-white px-2 rounded mr-1">保存</button>
+                      <button onClick={() => setEditingParticipantId(null)} className="bg-gray-300 px-2 rounded">キャンセル</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-gray-900">{participant.name}</span>
+                      <button onClick={() => handleEditParticipant(participant.id, participant.name)} className="ml-2 text-sm text-blue-500 underline">編集</button>
+                    </>
+                  )}
                 </div>
               ))}
               {tournament.participants.length === 0 && (
