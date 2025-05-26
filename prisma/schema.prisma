@@ -24,28 +24,32 @@ model Tournament {
 }
 
 model Participant {
-  id          String   @id @default(cuid())
-  name        String
-  tournamentId String
-  tournament  Tournament @relation(fields: [tournamentId], references: [id])
-  player1Matches Match[] @relation("Player1Matches")
-  player2Matches Match[] @relation("Player2Matches")
-  positions   Position[]
+  id            String   @id @default(cuid())
+  name          String
+  tournamentId  String
+  tournament    Tournament @relation(fields: [tournamentId], references: [id])
+  player1Matches Match[] @relation("Player1")
+  player2Matches Match[] @relation("Player2")
+  winnerMatches  Match[] @relation("Winner")
+  positions     Position[]
 }
 
 model Match {
-  id          String   @id @default(cuid())
-  round       Int
+  id           String   @id @default(cuid())
   tournamentId String
-  tournament  Tournament @relation(fields: [tournamentId], references: [id])
-  player1Id   String
-  player1     Participant @relation("Player1Matches", fields: [player1Id], references: [id])
-  player2Id   String
-  player2     Participant @relation("Player2Matches", fields: [player2Id], references: [id])
-  winnerId    String?
-  positions   Position[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  round        Int
+  matchType    String   @default("normal") // "normal" or "third_place"
+  player1Id    String
+  player2Id    String
+  winnerId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id])
+  player1      Participant @relation("Player1", fields: [player1Id], references: [id])
+  player2      Participant @relation("Player2", fields: [player2Id], references: [id])
+  winner       Participant? @relation("Winner", fields: [winnerId], references: [id])
+  positions    Position[]
 }
 
 model Position {

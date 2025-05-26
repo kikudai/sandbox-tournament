@@ -25,12 +25,48 @@ export async function POST(
       const round = body.round
       const shuffled = shuffleArray(winners)
       const matches = []
+
+      // 準決勝の場合、3位決定戦も生成
+      if (round === 2 && winners.length === 2) {
+        const semifinalMatches = await prisma.match.findMany({
+          where: {
+            tournamentId: params.id,
+            round: 1,
+          },
+          include: {
+            player1: true,
+            player2: true,
+          },
+        })
+
+        const losers = semifinalMatches
+          .map(match => match.winnerId === match.player1Id ? match.player2 : match.player1)
+
+        // 3位決定戦を生成
+        const thirdPlaceMatch = await prisma.match.create({
+          data: {
+            tournamentId: params.id,
+            round: 2,
+            matchType: 'third_place',
+            player1Id: losers[0].id,
+            player2Id: losers[1].id,
+          },
+          include: {
+            player1: true,
+            player2: true,
+          },
+        })
+        matches.push(thirdPlaceMatch)
+      }
+
+      // 通常の対戦を生成
       for (let i = 0; i < shuffled.length; i += 2) {
         if (i + 1 < shuffled.length) {
           const match = await prisma.match.create({
             data: {
               tournamentId: params.id,
               round,
+              matchType: 'normal',
               player1Id: shuffled[i].id,
               player2Id: shuffled[i + 1].id,
             },

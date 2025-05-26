@@ -19,6 +19,7 @@ type Participant = {
 type Match = {
   id: string
   round: number
+  matchType: string
   player1: Participant
   player2: Participant
   winnerId: string | null
@@ -42,6 +43,7 @@ export default function TournamentDetail() {
   const [selectedPositions, setSelectedPositions] = useState<Record<string, string>>({})
   const [isSettingWinner, setIsSettingWinner] = useState<string | null>(null)
   const [finalWinner, setFinalWinner] = useState<Participant | null>(null)
+  const [thirdPlace, setThirdPlace] = useState<Participant | null>(null)
 
   useEffect(() => {
     fetchTournament()
@@ -162,11 +164,24 @@ export default function TournamentDetail() {
     const currentRound = Math.max(...data.matches.map((m: any) => m.round))
     const currentRoundMatches = data.matches.filter((m: any) => m.round === currentRound)
     if (currentRoundMatches.some((m: any) => !m.winnerId)) return
-    const winners = currentRoundMatches.map((m: any) => m.player1.id === m.winnerId ? m.player1 : m.player2)
+
+    // 3位決定戦の結果を確認
+    const thirdPlaceMatch = currentRoundMatches.find((m: any) => m.matchType === 'third_place')
+    if (thirdPlaceMatch) {
+      const thirdPlaceWinner = thirdPlaceMatch.player1.id === thirdPlaceMatch.winnerId ? thirdPlaceMatch.player1 : thirdPlaceMatch.player2
+      setThirdPlace(thirdPlaceWinner)
+      return
+    }
+
+    const winners = currentRoundMatches
+      .filter((m: any) => m.matchType === 'normal')
+      .map((m: any) => m.player1.id === m.winnerId ? m.player1 : m.player2)
+
     if (winners.length === 1) {
       setFinalWinner(winners[0])
       return
     }
+
     await fetch(`/api/tournaments/${params.id}/matches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -191,6 +206,11 @@ export default function TournamentDetail() {
           {finalWinner && (
             <div className="mb-4 p-4 bg-yellow-100 rounded text-xl font-bold text-center text-yellow-800">
               優勝者: {finalWinner.name}
+            </div>
+          )}
+          {thirdPlace && (
+            <div className="mb-4 p-4 bg-gray-100 rounded text-xl font-bold text-center text-gray-800">
+              3位: {thirdPlace.name}
             </div>
           )}
           {tournament.description && (
@@ -258,6 +278,9 @@ export default function TournamentDetail() {
                     >
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
+                          {match.matchType === 'third_place' && (
+                            <span className="text-sm text-gray-500 mr-2">3位決定戦</span>
+                          )}
                           <span className="font-medium">{match.player1.name}</span>
                           <select
                             value={selectedPositions[`${match.id}-${match.player1.id}`] || ''}
