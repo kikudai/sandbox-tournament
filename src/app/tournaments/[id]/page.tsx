@@ -39,7 +39,6 @@ export default function TournamentDetail() {
   const [newParticipantName, setNewParticipantName] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
   const [selectedPositions, setSelectedPositions] = useState<Record<string, string>>({})
   const [isSettingWinner, setIsSettingWinner] = useState<string | null>(null)
   const [finalWinner, setFinalWinner] = useState<Participant | null>(null)
@@ -64,6 +63,22 @@ export default function TournamentDetail() {
     if (tournament && Array.isArray((tournament as any).positions)) {
       setEditPositions((tournament as any).positions)
     }
+  }, [tournament])
+
+  useEffect(() => {
+    if (!tournament || !tournament.matches) return
+    const posList = Array.isArray((tournament as any).positions) ? (tournament as any).positions : POSITIONS
+    const newSelected: Record<string, string> = { ...selectedPositions }
+    tournament.matches.forEach((match: any) => {
+      if (match.player1 && !newSelected[`${match.id}-${match.player1.id}`]) {
+        newSelected[`${match.id}-${match.player1.id}`] = posList[0] || '東'
+      }
+      if (match.player2 && !newSelected[`${match.id}-${match.player2.id}`]) {
+        newSelected[`${match.id}-${match.player2.id}`] = posList[1] || '西'
+      }
+    })
+    setSelectedPositions(newSelected)
+    // eslint-disable-next-line
   }, [tournament])
 
   const fetchTournament = async () => {
@@ -111,29 +126,6 @@ export default function TournamentDetail() {
       alert('参加者の追加に失敗しました')
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  const handleGenerateMatches = async () => {
-    if (!tournament || tournament.participants.length < 2) {
-      alert('対戦を生成するには2人以上の参加者が必要です')
-      return
-    }
-
-    setIsGenerating(true)
-    try {
-      const response = await fetch(`/api/tournaments/${params.id}/matches`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) throw new Error('対戦の生成に失敗しました')
-
-      fetchTournament()
-    } catch (error) {
-      console.error('Error:', error)
-      alert('対戦の生成に失敗しました')
-    } finally {
-      setIsGenerating(false)
     }
   }
 
@@ -503,24 +495,15 @@ export default function TournamentDetail() {
                 <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" onClick={handleStartMatches}>この組み合わせで対戦開始</button>
               </div>
             )}
-
-            {tournament.participants.length >= 2 && (
-              <div className="mb-8">
-                <button
-                  onClick={handleGenerateMatches}
-                  disabled={isGenerating}
-                  className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                >
-                  {isGenerating ? '生成中...' : '対戦組み合わせを生成'}
-                </button>
-              </div>
-            )}
-
-            {tournament.matches && tournament.matches.length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4">対戦組み合わせ</h2>
-                <div className="space-y-4">
-                  {tournament.matches.map((match) => (
+          </div>
+          {/* 対戦表（マッチリスト）表示 */}
+          {tournament.matches && tournament.matches.length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">対戦組み合わせ</h2>
+              <div className="space-y-4">
+                {tournament.matches.map((match) => {
+                  const isBye = match.matchType === 'bye' || match.player1.id === match.player2.id
+                  return (
                     <div
                       key={match.id}
                       className="p-4 bg-gray-50 rounded-md border border-gray-200"
@@ -531,52 +514,65 @@ export default function TournamentDetail() {
                             <span className="text-sm text-gray-500 mr-2">3位決定戦</span>
                           )}
                           <span className="font-medium">{match.player1.name}</span>
-                          <select
-                            value={selectedPositions[`${match.id}-${match.player1.id}`] || ''}
-                            onChange={(e) => handlePositionChange(match.id, match.player1.id, e.target.value)}
-                            className="ml-2 rounded-md border-gray-300 shadow-sm"
-                          >
-                            <option value="">立ち位置を選択</option>
-                            {POSITIONS.map((pos) => (
-                              <option key={pos} value={pos}>{pos}</option>
-                            ))}
-                          </select>
-                          <button
-                            className={`ml-2 px-2 py-1 rounded ${match.winnerId === match.player1.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'} ${isSettingWinner === match.id ? 'opacity-50' : ''}`}
-                            disabled={!!match.winnerId || isSettingWinner === match.id}
-                            onClick={() => handleSetWinner(match.id, match.player1.id)}
-                          >
-                            勝者
-                          </button>
+                          {isBye && (
+                            <span className="ml-2 px-2 py-1 bg-yellow-200 text-yellow-800 rounded text-xs">シード</span>
+                          )}
+                          {!isBye && (
+                            <>
+                              <select
+                                value={selectedPositions[`${match.id}-${match.player1.id}`] || ''}
+                                onChange={(e) => handlePositionChange(match.id, match.player1.id, e.target.value)}
+                                className="ml-2 rounded-md border-gray-300 shadow-sm"
+                              >
+                                <option value="">立ち位置を選択</option>
+                                {(Array.isArray((tournament as any).positions) ? (tournament as any).positions : POSITIONS).map((pos: string) => (
+                                  <option key={pos} value={pos}>{pos}</option>
+                                ))}
+                              </select>
+                              <button
+                                className={`ml-2 px-2 py-1 rounded ${match.winnerId === match.player1.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'} ${isSettingWinner === match.id ? 'opacity-50' : ''}`}
+                                disabled={!!match.winnerId || isSettingWinner === match.id}
+                                onClick={() => handleSetWinner(match.id, match.player1.id)}
+                              >
+                                勝者
+                              </button>
+                            </>
+                          )}
                         </div>
                         <div className="mx-4 text-gray-500">vs</div>
                         <div className="flex-1 text-right">
-                          <select
-                            value={selectedPositions[`${match.id}-${match.player2.id}`] || ''}
-                            onChange={(e) => handlePositionChange(match.id, match.player2.id, e.target.value)}
-                            className="mr-2 rounded-md border-gray-300 shadow-sm"
-                          >
-                            <option value="">立ち位置を選択</option>
-                            {POSITIONS.map((pos) => (
-                              <option key={pos} value={pos}>{pos}</option>
-                            ))}
-                          </select>
-                          <span className="font-medium">{match.player2.name}</span>
-                          <button
-                            className={`ml-2 px-2 py-1 rounded ${match.winnerId === match.player2.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'} ${isSettingWinner === match.id ? 'opacity-50' : ''}`}
-                            disabled={!!match.winnerId || isSettingWinner === match.id}
-                            onClick={() => handleSetWinner(match.id, match.player2.id)}
-                          >
-                            勝者
-                          </button>
+                          {isBye ? (
+                            <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs">シード（不戦勝）</span>
+                          ) : (
+                            <>
+                              <select
+                                value={selectedPositions[`${match.id}-${match.player2.id}`] || ''}
+                                onChange={(e) => handlePositionChange(match.id, match.player2.id, e.target.value)}
+                                className="mr-2 rounded-md border-gray-300 shadow-sm"
+                              >
+                                <option value="">立ち位置を選択</option>
+                                {(Array.isArray((tournament as any).positions) ? (tournament as any).positions : POSITIONS).map((pos: string) => (
+                                  <option key={pos} value={pos}>{pos}</option>
+                                ))}
+                              </select>
+                              <span className="font-medium">{match.player2.name}</span>
+                              <button
+                                className={`ml-2 px-2 py-1 rounded ${match.winnerId === match.player2.id ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'} ${isSettingWinner === match.id ? 'opacity-50' : ''}`}
+                                disabled={!!match.winnerId || isSettingWinner === match.id}
+                                onClick={() => handleSetWinner(match.id, match.player2.id)}
+                              >
+                                勝者
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
