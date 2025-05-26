@@ -45,6 +45,8 @@ export default function TournamentDetail() {
   const [finalWinner, setFinalWinner] = useState<Participant | null>(null)
   const [secondPlace, setSecondPlace] = useState<Participant | null>(null)
   const [thirdPlace, setThirdPlace] = useState<Participant | null>(null)
+  const [roundAssignments, setRoundAssignments] = useState<{ round: number, matches: { player1Id: string | null, player2Id: string | null }[] }>({ round: 1, matches: [] })
+  const [showAssignment, setShowAssignment] = useState(false)
 
   useEffect(() => {
     fetchTournament()
@@ -201,6 +203,46 @@ export default function TournamentDetail() {
     await fetchTournament()
   }
 
+  // 参加者リストから1回戦＋シード枠を自動生成する関数
+  const prepareInitialAssignments = () => {
+    if (!tournament) return
+    const participants = [...tournament.participants]
+    // 1. 2のべき乗を計算
+    let n = 1
+    while (n < participants.length) n *= 2
+    const seedCount = n - participants.length
+
+    // 2. シャッフル
+    const shuffled = [...participants].sort(() => Math.random() - 0.5)
+
+    // 3. シード枠を先に作る
+    const matches = []
+    for (let i = 0; i < seedCount; i++) {
+      matches.push({ player1Id: shuffled[i].id, player2Id: null })
+    }
+
+    // 4. 残りで1回戦を作る
+    for (let i = seedCount; i < shuffled.length; i += 2) {
+      matches.push({
+        player1Id: shuffled[i].id,
+        player2Id: shuffled[i + 1] ? shuffled[i + 1].id : null,
+      })
+    }
+
+    setRoundAssignments({ round: 1, matches })
+    setShowAssignment(true)
+  }
+
+  const handleAssignmentChange = (matchIdx: number, playerNum: 1 | 2, participantId: string | null) => {
+    setRoundAssignments((prev) => {
+      const newMatches = prev.matches.map((m, idx) => {
+        if (idx !== matchIdx) return m
+        return playerNum === 1 ? { ...m, player1Id: participantId } : { ...m, player2Id: participantId }
+      })
+      return { ...prev, matches: newMatches }
+    })
+  }
+
   if (isLoading) {
     return <div className="p-8">読み込み中...</div>
   }
@@ -270,6 +312,53 @@ export default function TournamentDetail() {
                 </p>
               )}
             </div>
+
+            {tournament.participants.length >= 2 && (
+              <div className="mb-8">
+                <button
+                  onClick={prepareInitialAssignments}
+                  className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400"
+                >
+                  対戦者・シード編集
+                </button>
+              </div>
+            )}
+
+            {showAssignment && (
+              <div className="mb-8 p-4 bg-gray-100 rounded">
+                <h3 className="text-lg font-bold mb-4">1回戦・シード枠 割り当て</h3>
+                {roundAssignments.matches.map((match, idx) => (
+                  <div key={idx} className="flex items-center gap-4 mb-2">
+                    <select
+                      value={match.player1Id || ''}
+                      onChange={e => handleAssignmentChange(idx, 1, e.target.value || null)}
+                      className="rounded border-gray-300 px-2 py-1"
+                    >
+                      <option value="">未選択</option>
+                      {tournament.participants.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <span>vs</span>
+                    {match.player2Id !== null ? (
+                      <select
+                        value={match.player2Id || ''}
+                        onChange={e => handleAssignmentChange(idx, 2, e.target.value || null)}
+                        className="rounded border-gray-300 px-2 py-1"
+                      >
+                        <option value="">未選択</option>
+                        {tournament.participants.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-green-700 font-bold">シード</span>
+                    )}
+                  </div>
+                ))}
+                <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">この組み合わせで対戦開始</button>
+              </div>
+            )}
 
             {tournament.participants.length >= 2 && (
               <div className="mb-8">
