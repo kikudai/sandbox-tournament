@@ -52,6 +52,7 @@ export async function PATCH(
     const updateData: any = {}
     if (body.name !== undefined) updateData.name = body.name
     if (body.description !== undefined) updateData.description = body.description
+    if (body.positions !== undefined && Array.isArray(body.positions)) updateData.positions = body.positions
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: '更新内容がありません' }, { status: 400 })
     }

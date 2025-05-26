@@ -53,10 +53,18 @@ export default function TournamentDetail() {
   const [editDesc, setEditDesc] = useState(tournament?.description || "")
   const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null)
   const [editParticipantName, setEditParticipantName] = useState("")
+  const [isEditingPositions, setIsEditingPositions] = useState(false)
+  const [editPositions, setEditPositions] = useState<string[]>(Array.isArray((tournament as any)?.positions) ? (tournament as any).positions : ["東","西"])
 
   useEffect(() => {
     fetchTournament()
   }, [params.id])
+
+  useEffect(() => {
+    if (tournament && Array.isArray((tournament as any).positions)) {
+      setEditPositions((tournament as any).positions)
+    }
+  }, [tournament])
 
   const fetchTournament = async () => {
     try {
@@ -284,6 +292,38 @@ export default function TournamentDetail() {
     fetchTournament()
   }
 
+  const handleStartMatches = async () => {
+    if (!tournament) return
+    // バリデーション: すべての枠が未選択でないこと
+    for (const match of roundAssignments.matches) {
+      if (!match.player1Id || (match.player2Id === undefined)) {
+        alert('すべての枠に参加者を割り当ててください')
+        return
+      }
+    }
+    const response = await fetch(`/api/tournaments/${tournament.id}/matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matches: roundAssignments.matches, round: roundAssignments.round }),
+    })
+    if (!response.ok) {
+      alert('対戦の生成に失敗しました')
+      return
+    }
+    setShowAssignment(false)
+    fetchTournament()
+  }
+
+  const handleSavePositions = async () => {
+    await fetch(`/api/tournaments/${tournament.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ positions: editPositions }),
+    })
+    setIsEditingPositions(false)
+    fetchTournament()
+  }
+
   if (isLoading) {
     return <div className="p-8">読み込み中...</div>
   }
@@ -324,6 +364,34 @@ export default function TournamentDetail() {
               </p>
             )
           )}
+          {/* 立ち位置編集UI */}
+          <div className="mb-4">
+            <span className="font-semibold">立ち位置呼称：</span>
+            {isEditingPositions ? (
+              <span className="flex gap-2 items-center">
+                {editPositions.map((pos, idx) => (
+                  <input
+                    key={idx}
+                    value={pos}
+                    onChange={e => {
+                      const newPos = [...editPositions]
+                      newPos[idx] = e.target.value
+                      setEditPositions(newPos)
+                    }}
+                    className="border rounded px-2 py-1 w-20"
+                  />
+                ))}
+                <button onClick={() => setEditPositions([...editPositions, ""])} className="bg-blue-200 px-2 rounded">＋</button>
+                <button onClick={handleSavePositions} className="bg-green-500 text-white px-2 rounded">保存</button>
+                <button onClick={() => { setIsEditingPositions(false); setEditPositions(Array.isArray((tournament as any).positions) ? (tournament as any).positions : ["東","西"]); }} className="bg-gray-300 px-2 rounded">キャンセル</button>
+              </span>
+            ) : (
+              <span className="ml-2">
+                {Array.isArray((tournament as any).positions) ? (tournament as any).positions.join('・') : '東・西'}
+                <button onClick={() => setIsEditingPositions(true)} className="ml-2 text-sm text-blue-500 underline">編集</button>
+              </span>
+            )}
+          </div>
           {finalWinner && (
             <div className="mb-2 p-4 bg-yellow-100 rounded text-xl font-bold text-center text-yellow-800">
               1位（優勝）: {finalWinner.name}
@@ -432,7 +500,7 @@ export default function TournamentDetail() {
                     )}
                   </div>
                 ))}
-                <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">この組み合わせで対戦開始</button>
+                <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" onClick={handleStartMatches}>この組み合わせで対戦開始</button>
               </div>
             )}
 

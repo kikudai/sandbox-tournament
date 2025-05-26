@@ -19,6 +19,34 @@ export async function POST(
 ) {
   try {
     const body = await request.json().catch(() => ({}))
+    // 新しい割り当てによる1回戦生成
+    if (body.matches && Array.isArray(body.matches) && body.round === 1) {
+      // 既存の1回戦マッチを削除
+      await prisma.match.deleteMany({
+        where: { tournamentId: params.id, round: 1 },
+      })
+      // 新しいマッチを作成
+      const createdMatches = []
+      for (const m of body.matches) {
+        if (!m.player1Id) continue
+        const match = await prisma.match.create({
+          data: {
+            tournamentId: params.id,
+            round: 1,
+            matchType: m.player2Id === null ? 'bye' : 'normal',
+            player1Id: m.player1Id,
+            player2Id: m.player2Id ?? m.player1Id,
+            winnerId: m.player2Id === null ? m.player1Id : undefined,
+          },
+          include: {
+            player1: true,
+            player2: true,
+          },
+        })
+        createdMatches.push(match)
+      }
+      return NextResponse.json(createdMatches)
+    }
     // 次ラウンド生成の場合
     if (body.winners && Array.isArray(body.winners) && body.round) {
       const winners = body.winners

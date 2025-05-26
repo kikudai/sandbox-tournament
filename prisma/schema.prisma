@@ -21,6 +21,7 @@ model Tournament {
   updatedAt   DateTime @updatedAt
   matches     Match[]
   participants Participant[]
+  positions   Json     @default("[\"東\",\"西\"]")
 }
 
 model Participant {
