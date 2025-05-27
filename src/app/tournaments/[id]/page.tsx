@@ -54,6 +54,8 @@ export default function TournamentDetail() {
   const [editParticipantName, setEditParticipantName] = useState("")
   const [isEditingPositions, setIsEditingPositions] = useState(false)
   const [editPositions, setEditPositions] = useState<string[]>(Array.isArray((tournament as any)?.positions) ? (tournament as any).positions : ["東","西"])
+  const [patternCandidates, setPatternCandidates] = useState<{ name: string; matches: { player1: Participant | null; player2: Participant | null }[] }[]>([])
+  const [selectedPatternIdx, setSelectedPatternIdx] = useState<number | null>(null)
 
   useEffect(() => {
     fetchTournament()
@@ -217,50 +219,35 @@ export default function TournamentDetail() {
     const seedCount = m - n;
     const patterns: { name: string; matches: { player1: Participant | null; player2: Participant | null }[] }[] = [];
 
-    // 標準パターン（シードを先頭から）
-    const stdOrder = [...participants];
-    const stdMatches = [];
-    let idx = 0;
-    for (let i = 0; i < m / 2; i++) {
-      let p1: Participant | null = null;
-      let p2: Participant | null = null;
-      if (seedCount > 0 && i < seedCount) {
-        p1 = stdOrder[idx++];
-        p2 = null; // シード
-      } else {
-        p1 = stdOrder[idx++];
-        p2 = stdOrder[idx++];
+    // 2^k人の場合は1パターンのみ
+    if (seedCount === 0) {
+      const stdOrder = [...participants];
+      const stdMatches = [];
+      let idx = 0;
+      for (let i = 0; i < n / 2; i++) {
+        const p1 = stdOrder[idx++];
+        const p2 = stdOrder[idx++];
+        stdMatches.push({ player1: p1, player2: p2 });
       }
-      stdMatches.push({ player1: p1, player2: p2 });
+      patterns.push({ name: '基本（シードなし）', matches: stdMatches });
+      return patterns;
     }
-    patterns.push({ name: '標準（シード先頭）', matches: stdMatches });
 
-    // パターンB（シードを末尾から）
-    const revOrder = [...participants];
-    const revMatches = [];
-    idx = 0;
-    for (let i = 0; i < m / 2; i++) {
-      let p1: Participant | null = null;
-      let p2: Participant | null = null;
-      if (seedCount > 0 && i >= m / 2 - seedCount) {
-        p1 = revOrder[idx++];
-        p2 = null;
-      } else {
-        p1 = revOrder[idx++];
-        p2 = revOrder[idx++];
-      }
-      revMatches.push({ player1: p1, player2: p2 });
-    }
-    patterns.push({ name: 'シード末尾', matches: revMatches });
-
-    // パターンC（シード分散配置）
+    // --- パターン①: BYE分散（バランス良く） ---
     const distOrder = [...participants];
     const distMatches = [];
-    idx = 0;
+    let idx = 0;
+    // BYEをできるだけ均等に配置
+    const byeIndexes: number[] = [];
+    for (let i = 0; i < seedCount; i++) {
+      byeIndexes.push(Math.round(i * (m / 2) / seedCount));
+    }
+    // 重複を除去し、枠数を超えないように
+    const uniqueByeIndexes = Array.from(new Set(byeIndexes)).filter(i => i < m / 2);
     for (let i = 0; i < m / 2; i++) {
       let p1: Participant | null = null;
       let p2: Participant | null = null;
-      if (seedCount > 0 && i % Math.ceil((m / 2) / seedCount) === 0 && i / Math.ceil((m / 2) / seedCount) < seedCount) {
+      if (uniqueByeIndexes.includes(i)) {
         p1 = distOrder[idx++];
         p2 = null;
       } else {
@@ -269,7 +256,25 @@ export default function TournamentDetail() {
       }
       distMatches.push({ player1: p1, player2: p2 });
     }
-    patterns.push({ name: 'シード分散', matches: distMatches });
+    patterns.push({ name: 'BYE分散（バランス良く）', matches: distMatches });
+
+    // --- パターン②: BYE片側集中 ---
+    const revOrder = [...participants];
+    const revMatches = [];
+    idx = 0;
+    for (let i = 0; i < m / 2; i++) {
+      let p1: Participant | null = null;
+      let p2: Participant | null = null;
+      if (i >= m / 2 - seedCount) {
+        p1 = revOrder[idx++];
+        p2 = null;
+      } else {
+        p1 = revOrder[idx++];
+        p2 = revOrder[idx++];
+      }
+      revMatches.push({ player1: p1, player2: p2 });
+    }
+    patterns.push({ name: 'BYE片側集中', matches: revMatches });
 
     return patterns;
   }
@@ -358,6 +363,66 @@ export default function TournamentDetail() {
     })
     setIsEditingPositions(false)
     fetchTournament()
+  }
+
+  // 1回戦パターン選択UIを表示
+  const handleShowPatternCandidates = () => {
+    if (!tournament) return
+    const patterns = generateFirstRoundPatterns(tournament.participants)
+    setPatternCandidates(patterns)
+    setSelectedPatternIdx(null)
+    setShowAssignment(false)
+  }
+
+  // パターン決定→1回戦割り当て
+  const handleSelectPatternAndStart = () => {
+    if (selectedPatternIdx === null || !patternCandidates[selectedPatternIdx]) return
+    const pattern = patternCandidates[selectedPatternIdx]
+    // matches: {player1, player2} から {player1Id, player2Id} へ変換
+    const matches = pattern.matches.map(m => ({
+      player1Id: m.player1 ? m.player1.id : null,
+      player2Id: m.player2 ? m.player2.id : null,
+    }))
+    setRoundAssignments({ round: 1, matches })
+    setShowAssignment(true)
+    setPatternCandidates([])
+    setSelectedPatternIdx(null)
+  }
+
+  // 指定パターンの全ラウンド組み合わせを計算して返す（簡易ビュー用）
+  function getTournamentRounds(matches: { player1: Participant | null; player2: Participant | null }[]) {
+    // 各ラウンドの各試合に「どのカードの勝者か」を記録
+    type MatchInfo = { player1: string; player2: string; label: string };
+    const rounds: { matches: MatchInfo[] }[] = [];
+    let currentMatches: MatchInfo[] = matches.map((m, i) => ({
+      player1: m.player1 ? m.player1.name : 'BYE',
+      player2: m.player2 ? m.player2.name : 'BYE',
+      label: `${m.player1 ? m.player1.name : 'BYE'} vs ${m.player2 ? m.player2.name : 'BYE'}`
+    }));
+    // 1回戦の勝者ラベル
+    let winnerLabels = currentMatches.map((m, i) => `勝者1回戦${i + 1}（${m.label}）`);
+    rounds.push({ matches: currentMatches });
+    let roundNum = 2;
+    while (currentMatches.length > 1) {
+      const nextMatches: MatchInfo[] = [];
+      const nextWinnerLabels: string[] = [];
+      for (let i = 0; i < currentMatches.length; i += 2) {
+        const p1 = winnerLabels[i] || '';
+        const p2 = winnerLabels[i + 1] || '';
+        const label = `${p1} vs ${p2}`;
+        if (p2) {
+          nextMatches.push({ player1: p1, player2: p2, label });
+          nextWinnerLabels.push(`勝者${roundNum}回戦${nextMatches.length}（${label}）`);
+        }
+      }
+      if (nextMatches.length > 0) {
+        rounds.push({ matches: nextMatches });
+      }
+      currentMatches = nextMatches;
+      winnerLabels = nextWinnerLabels;
+      roundNum++;
+    }
+    return rounds;
   }
 
   if (isLoading) {
@@ -497,10 +562,7 @@ export default function TournamentDetail() {
             {tournament.participants.length >= 2 && (
               <div className="mb-8">
                 <button
-                  onClick={() => {
-                    const patterns = generateFirstRoundPatterns(tournament.participants)
-                    // ここでpatternsを使用してUIに表示するか、選択するかを決定する
-                  }}
+                  onClick={handleShowPatternCandidates}
                   className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400"
                 >
                   対戦者・シード編集
@@ -508,39 +570,52 @@ export default function TournamentDetail() {
               </div>
             )}
 
-            {showAssignment && (
+            {/* 1回戦パターン候補のプレビュー＆選択UI */}
+            {patternCandidates.length > 0 && (
               <div className="mb-8 p-4 bg-gray-100 rounded">
-                <h3 className="text-lg font-bold mb-4">1回戦・シード枠 割り当て</h3>
-                {roundAssignments.matches.map((match, idx) => (
-                  <div key={idx} className="flex items-center gap-4 mb-2">
-                    <select
-                      value={match.player1Id || ''}
-                      onChange={e => handleAssignmentChange(idx, 1, e.target.value || null)}
-                      className="rounded border-gray-300 px-2 py-1"
+                <h3 className="text-lg font-bold mb-4">1回戦パターン候補を選択</h3>
+                <div className="space-y-4">
+                  {patternCandidates.map((pattern, idx) => (
+                    <div key={idx} className={`p-3 rounded border ${selectedPatternIdx === idx ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-white'}`}
+                      onClick={() => setSelectedPatternIdx(idx)}
+                      style={{ cursor: 'pointer' }}
                     >
-                      <option value="">未選択</option>
-                      {tournament.participants.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <span>vs</span>
-                    {match.player2Id !== null ? (
-                      <select
-                        value={match.player2Id || ''}
-                        onChange={e => handleAssignmentChange(idx, 2, e.target.value || null)}
-                        className="rounded border-gray-300 px-2 py-1"
-                      >
-                        <option value="">未選択</option>
-                        {tournament.participants.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                      <div className="font-semibold mb-2">{pattern.name}</div>
+                      <ul>
+                        {pattern.matches.map((m, i) => (
+                          <li key={i} className="flex gap-2 items-center mb-1">
+                            <span>{m.player1 ? m.player1.name : <span className="text-gray-400">シード</span>}</span>
+                            <span>vs</span>
+                            <span>{m.player2 ? m.player2.name : <span className="text-gray-400">シード</span>}</span>
+                          </li>
                         ))}
-                      </select>
-                    ) : (
-                      <span className="text-green-700 font-bold">シード</span>
-                    )}
-                  </div>
-                ))}
-                <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" onClick={handleStartMatches}>この組み合わせで対戦開始</button>
+                      </ul>
+                      {/* トーナメントプレビュー */}
+                      {selectedPatternIdx === idx && (
+                        <div className="mt-4 p-2 bg-white rounded border border-dashed border-gray-300">
+                          <div className="font-bold mb-2 text-sm text-gray-700">トーナメントプレビュー</div>
+                          {getTournamentRounds(pattern.matches).map((round, rIdx, arr) => (
+                            <div key={rIdx} className="mb-2">
+                              <div className="text-xs font-semibold text-gray-600 mb-1">{rIdx === 0 ? '1回戦' : rIdx + 1 === arr.length ? '決勝' : `${rIdx + 1}回戦`}</div>
+                              <ul className="ml-2">
+                                {round.matches.map((m, mi) => (
+                                  <li key={mi} className="text-xs text-gray-800 mb-0.5">{m.player1} vs {m.player2}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                  disabled={selectedPatternIdx === null}
+                  onClick={handleSelectPatternAndStart}
+                >
+                  このパターンで対戦開始
+                </button>
               </div>
             )}
           </div>
