@@ -194,10 +194,10 @@ export default function TournamentDetail() {
 
     const winners = currentRoundMatches
       .filter((m: any) => m.matchType === 'normal')
-      .map((m: any) => m.player1.id === m.winnerId ? m.player1 : m.player2)
+      .map((m: any) => m.player1.id === m.winnerId ? m.player1.id : m.player2.id)
 
     if (winners.length === 1) {
-      setFinalWinner(winners[0])
+      setFinalWinner(tournament.participants.find(p => p.id === winners[0]))
       return
     }
 
@@ -209,34 +209,69 @@ export default function TournamentDetail() {
     await fetchTournament()
   }
 
-  // 参加者リストから1回戦＋シード枠を自動生成する関数
-  const prepareInitialAssignments = () => {
-    if (!tournament) return
-    const participants = [...tournament.participants]
-    // 1. 2のべき乗を計算
-    let n = 1
-    while (n < participants.length) n *= 2
-    const seedCount = n - participants.length
+  // 参加人数と参加者リストから複数の1回戦パターンを生成する関数
+  function generateFirstRoundPatterns(participants: Participant[]) {
+    const n = participants.length;
+    let m = 1;
+    while (m < n) m *= 2;
+    const seedCount = m - n;
+    const patterns: { name: string; matches: { player1: Participant | null; player2: Participant | null }[] }[] = [];
 
-    // 2. シャッフル
-    const shuffled = [...participants].sort(() => Math.random() - 0.5)
-
-    // 3. シード枠を先に作る
-    const matches = []
-    for (let i = 0; i < seedCount; i++) {
-      matches.push({ player1Id: shuffled[i].id, player2Id: null })
+    // 標準パターン（シードを先頭から）
+    const stdOrder = [...participants];
+    const stdMatches = [];
+    let idx = 0;
+    for (let i = 0; i < m / 2; i++) {
+      let p1: Participant | null = null;
+      let p2: Participant | null = null;
+      if (seedCount > 0 && i < seedCount) {
+        p1 = stdOrder[idx++];
+        p2 = null; // シード
+      } else {
+        p1 = stdOrder[idx++];
+        p2 = stdOrder[idx++];
+      }
+      stdMatches.push({ player1: p1, player2: p2 });
     }
+    patterns.push({ name: '標準（シード先頭）', matches: stdMatches });
 
-    // 4. 残りで1回戦を作る
-    for (let i = seedCount; i < shuffled.length; i += 2) {
-      matches.push({
-        player1Id: shuffled[i].id,
-        player2Id: shuffled[i + 1] ? shuffled[i + 1].id : null,
-      })
+    // パターンB（シードを末尾から）
+    const revOrder = [...participants];
+    const revMatches = [];
+    idx = 0;
+    for (let i = 0; i < m / 2; i++) {
+      let p1: Participant | null = null;
+      let p2: Participant | null = null;
+      if (seedCount > 0 && i >= m / 2 - seedCount) {
+        p1 = revOrder[idx++];
+        p2 = null;
+      } else {
+        p1 = revOrder[idx++];
+        p2 = revOrder[idx++];
+      }
+      revMatches.push({ player1: p1, player2: p2 });
     }
+    patterns.push({ name: 'シード末尾', matches: revMatches });
 
-    setRoundAssignments({ round: 1, matches })
-    setShowAssignment(true)
+    // パターンC（シード分散配置）
+    const distOrder = [...participants];
+    const distMatches = [];
+    idx = 0;
+    for (let i = 0; i < m / 2; i++) {
+      let p1: Participant | null = null;
+      let p2: Participant | null = null;
+      if (seedCount > 0 && i % Math.ceil((m / 2) / seedCount) === 0 && i / Math.ceil((m / 2) / seedCount) < seedCount) {
+        p1 = distOrder[idx++];
+        p2 = null;
+      } else {
+        p1 = distOrder[idx++];
+        p2 = distOrder[idx++];
+      }
+      distMatches.push({ player1: p1, player2: p2 });
+    }
+    patterns.push({ name: 'シード分散', matches: distMatches });
+
+    return patterns;
   }
 
   const handleAssignmentChange = (matchIdx: number, playerNum: 1 | 2, participantId: string | null) => {
@@ -282,6 +317,15 @@ export default function TournamentDetail() {
     })
     setEditingParticipantId(null)
     fetchTournament()
+  }
+
+  const handleDeleteParticipant = async (id: string) => {
+    if (!window.confirm('本当に削除しますか？')) return;
+    await fetch(`/api/participants/${id}`, {
+      method: 'DELETE',
+    });
+    setEditingParticipantId(null);
+    fetchTournament();
   }
 
   const handleStartMatches = async () => {
@@ -432,7 +476,8 @@ export default function TournamentDetail() {
                     <>
                       <input value={editParticipantName} onChange={e => setEditParticipantName(e.target.value)} className="border rounded px-2 py-1 mr-2" />
                       <button onClick={() => handleSaveParticipant(participant.id)} className="bg-green-500 text-white px-2 rounded mr-1">保存</button>
-                      <button onClick={() => setEditingParticipantId(null)} className="bg-gray-300 px-2 rounded">キャンセル</button>
+                      <button onClick={() => setEditingParticipantId(null)} className="bg-gray-300 px-2 rounded mr-1">キャンセル</button>
+                      <button onClick={() => handleDeleteParticipant(participant.id)} className="bg-red-500 text-white px-2 rounded">削除</button>
                     </>
                   ) : (
                     <>
@@ -452,7 +497,10 @@ export default function TournamentDetail() {
             {tournament.participants.length >= 2 && (
               <div className="mb-8">
                 <button
-                  onClick={prepareInitialAssignments}
+                  onClick={() => {
+                    const patterns = generateFirstRoundPatterns(tournament.participants)
+                    // ここでpatternsを使用してUIに表示するか、選択するかを決定する
+                  }}
                   className="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400"
                 >
                   対戦者・シード編集

@@ -21,4 +21,19 @@ export async function PATCH(
     console.error('Error updating participant:', error)
     return NextResponse.json({ error: '参加者の更新に失敗しました' }, { status: 500 })
   }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await prisma.participant.delete({
+      where: { id: params.id },
+    })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting participant:', error)
+    return NextResponse.json({ error: '参加者の削除に失敗しました' }, { status: 500 })
+  }
 } 
