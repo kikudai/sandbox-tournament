@@ -51,7 +51,7 @@ export async function POST(
     if (body.winners && Array.isArray(body.winners) && body.round) {
       const winners = body.winners
       const round = body.round
-      // 2回戦は「1回戦勝者 vs シード選手」ペアリング
+      // 2回戦も3回戦以降と同じく、2人ずつペアリングし余り1人はシード（不戦勝）
       if (round === 2) {
         const firstRoundMatches = await prisma.match.findMany({
           where: { tournamentId: params.id, round: 1 },
@@ -63,32 +63,46 @@ export async function POST(
         const byeWinners = firstRoundMatches
           .filter(m => m.matchType === 'bye' && !!m.winnerId)
           .map(m => m.winnerId as string)
+        // 1回戦勝者＋シード全員をまとめてペアリング
+        const allWinners = [...normalWinners, ...byeWinners]
+        const shuffled = shuffleArray<string>(allWinners)
         const matches = []
-        for (let i = 0; i < normalWinners.length; i++) {
-          matches.push({
-            player1Id: normalWinners[i] as string,
-            player2Id: byeWinners[i] ? (byeWinners[i] as string) : (normalWinners[i] as string), // 余りは自動シード
-          })
+        for (let i = 0; i < shuffled.length; i += 2) {
+          if (i + 1 < shuffled.length) {
+            const match = await prisma.match.create({
+              data: {
+                tournamentId: params.id,
+                round,
+                matchType: 'normal',
+                player1Id: shuffled[i],
+                player2Id: shuffled[i + 1],
+              },
+              include: {
+                player1: true,
+                player2: true,
+              },
+            })
+            matches.push(match)
+          } else {
+            // 奇数の場合、余った1人はシード（不戦勝）
+            const byeMatch = await prisma.match.create({
+              data: {
+                tournamentId: params.id,
+                round,
+                matchType: 'bye',
+                player1Id: shuffled[i],
+                player2Id: shuffled[i],
+                winnerId: shuffled[i],
+              },
+              include: {
+                player1: true,
+                player2: true,
+              },
+            })
+            matches.push(byeMatch)
+          }
         }
-        // 実際のマッチ作成
-        const createdMatches = []
-        for (const m of matches) {
-          const match = await prisma.match.create({
-            data: {
-              tournamentId: params.id,
-              round,
-              matchType: 'normal',
-              player1Id: m.player1Id,
-              player2Id: m.player2Id,
-            },
-            include: {
-              player1: true,
-              player2: true,
-            },
-          })
-          createdMatches.push(match)
-        }
-        return NextResponse.json(createdMatches)
+        return NextResponse.json(matches)
       }
       // 3回戦以降は従来通り
       const shuffled = shuffleArray<string>(winners as string[])
@@ -143,6 +157,23 @@ export async function POST(
             },
           })
           matches.push(match)
+        } else {
+          // 奇数の場合、余った1人はシード（不戦勝）として次ラウンドに進出
+          const byeMatch = await prisma.match.create({
+            data: {
+              tournamentId: params.id,
+              round,
+              matchType: 'bye',
+              player1Id: shuffled[i],
+              player2Id: shuffled[i], // 自分自身
+              winnerId: shuffled[i],  // 勝者も自分
+            },
+            include: {
+              player1: true,
+              player2: true,
+            },
+          })
+          matches.push(byeMatch)
         }
       }
       return NextResponse.json(matches)

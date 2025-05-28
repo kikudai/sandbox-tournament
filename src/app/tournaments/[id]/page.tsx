@@ -181,32 +181,21 @@ export default function TournamentDetail() {
     if (thirdPlaceMatch) {
       const thirdPlaceWinner = thirdPlaceMatch.player1.id === thirdPlaceMatch.winnerId ? thirdPlaceMatch.player1 : thirdPlaceMatch.player2
       setThirdPlace(thirdPlaceWinner)
-      return
-    }
-
-    // 決勝戦の勝者・敗者をセット
-    const finalMatch = currentRoundMatches.find((m: any) => m.matchType === 'normal')
-    if (finalMatch && currentRoundMatches.length === 1) {
-      const winner = finalMatch.player1.id === finalMatch.winnerId ? finalMatch.player1 : finalMatch.player2
-      const loser = finalMatch.player1.id === finalMatch.winnerId ? finalMatch.player2 : finalMatch.player1
-      setFinalWinner(winner)
-      setSecondPlace(loser)
-      return
-    }
-
-    const winners = currentRoundMatches
-      .filter((m: any) => m.matchType === 'normal')
-      .map((m: any) => m.player1.id === m.winnerId ? m.player1.id : m.player2.id)
-
-    if (winners.length === 1) {
-      setFinalWinner(tournament.participants.find(p => p.id === winners[0]))
+      // 決勝戦の勝者・敗者もセット
+      const finalMatch = currentRoundMatches.find((m: any) => m.matchType === 'normal')
+      if (finalMatch && currentRoundMatches.length >= 2) {
+        const winner = finalMatch.player1.id === finalMatch.winnerId ? finalMatch.player1 : finalMatch.player2
+        const loser = finalMatch.player1.id === finalMatch.winnerId ? finalMatch.player2 : finalMatch.player1
+        setFinalWinner(winner)
+        setSecondPlace(loser)
+      }
       return
     }
 
     await fetch(`/api/tournaments/${params.id}/matches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ winners, round: currentRound + 1 }),
+      body: JSON.stringify({ winners: currentRoundMatches.map((m: any) => m.winnerId), round: currentRound + 1 }),
     })
     await fetchTournament()
   }
@@ -615,6 +604,52 @@ export default function TournamentDetail() {
                   onClick={handleSelectPatternAndStart}
                 >
                   このパターンで対戦開始
+                </button>
+              </div>
+            )}
+            {/* 1回戦割り当て編集画面 */}
+            {showAssignment && (
+              <div className="mb-8 p-4 bg-blue-50 rounded">
+                <h3 className="text-lg font-bold mb-4">1回戦 割り当て編集</h3>
+                <div className="space-y-2 mb-4">
+                  {roundAssignments.matches.map((match, idx) => (
+                    <div key={idx} className="flex gap-4 items-center">
+                      <select
+                        value={match.player1Id || ''}
+                        onChange={e => handleAssignmentChange(idx, 1, e.target.value || null)}
+                        className="border rounded px-2 py-1"
+                      >
+                        <option value="">未選択</option>
+                        {tournament.participants.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                      <span>vs</span>
+                      <select
+                        value={match.player2Id || ''}
+                        onChange={e => handleAssignmentChange(idx, 2, e.target.value || null)}
+                        className="border rounded px-2 py-1"
+                      >
+                        <option value="">未選択</option>
+                        {tournament.participants.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                        <option value={null}>シード</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  onClick={handleStartMatches}
+                >
+                  この割り当てで開始
+                </button>
+                <button
+                  className="ml-4 bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                  onClick={() => setShowAssignment(false)}
+                >
+                  キャンセル
                 </button>
               </div>
             )}
