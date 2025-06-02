@@ -1,4 +1,9 @@
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+
+const TournamentPreview = dynamic(() => import('../components/TournamentPreview'), {
+  ssr: false,
+})
 
 export default function Home() {
   return (
@@ -8,6 +13,9 @@ export default function Home() {
         <p className="text-lg mb-8">
           対戦時の立ち位置を管理できるトーナメント管理アプリケーションへようこそ！
         </p>
+        <div className="mb-8">
+          <TournamentPreview />
+        </div>
         <div className="flex justify-center">
           <Link
             href="/tournaments/new"
