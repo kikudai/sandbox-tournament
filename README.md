@@ -18,6 +18,30 @@ Next.jsを使用したトーナメント管理アプリケーションです。�
 - Prisma (SQLite)
 - Headless UI
 - Heroicons
+- React Flow (トーナメント図の可視化)
+
+## プロジェクト構成
+
+```mermaid
+graph TD
+    A[Next.js App] --> B[フロントエンド]
+    A --> C[バックエンド]
+    
+    B --> D[React Components]
+    B --> E[Tailwind CSS]
+    B --> F[Headless UI]
+    B --> G[React Flow]
+    
+    C --> H[Prisma]
+    C --> I[API Routes]
+    
+    H --> J[SQLite Database]
+    
+    D --> K[トーナメント管理]
+    D --> L[参加者管理]
+    D --> M[対戦管理]
+    D --> N[立ち位置管理]
+```
 
 ## セットアップ手順
 
