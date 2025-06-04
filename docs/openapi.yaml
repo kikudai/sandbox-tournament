@@ -1,0 +1,411 @@
+openapi: 3.0.3
+info:
+  title: Tournament API
+  version: 1.0.0
+  description: |
+    トーナメント管理アプリケーションのAPI仕様（OpenAPI形式）。
+    認証・レート制限は将来的に追加予定。
+servers:
+  - url: /api
+paths:
+  /tournaments:
+    get:
+      summary: トーナメント一覧取得
+      responses:
+        '200':
+          description: トーナメント一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentsResponse'
+    post:
+      summary: トーナメント作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournamentCreateRequest'
+      responses:
+        '200':
+          description: 作成したトーナメント
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tournaments/{id}:
+    get:
+      summary: トーナメント詳細取得
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+      responses:
+        '200':
+          description: トーナメント詳細
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: トーナメント情報更新
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournamentUpdateRequest'
+      responses:
+        '200':
+          description: 更新後のトーナメント
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tournament'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tournaments/{id}/participants:
+    get:
+      summary: 参加者一覧取得
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+      responses:
+        '200':
+          description: 参加者一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantsResponse'
+    post:
+      summary: 参加者追加
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantCreateRequest'
+      responses:
+        '200':
+          description: 追加した参加者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tournaments/{id}/matches:
+    get:
+      summary: 対戦一覧取得
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+      responses:
+        '200':
+          description: 対戦一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchesResponse'
+    post:
+      summary: 対戦作成
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatchCreateRequest'
+      responses:
+        '200':
+          description: 作成した対戦
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tournaments/{id}/matches/{matchId}/winner:
+    post:
+      summary: 勝者登録
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+        - $ref: '#/components/parameters/MatchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WinnerRegisterRequest'
+      responses:
+        '200':
+          description: 勝者登録後の対戦
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tournaments/{id}/matches/{matchId}/positions:
+    get:
+      summary: 立ち位置一覧取得
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: 立ち位置一覧
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionsResponse'
+    post:
+      summary: 立ち位置登録
+      parameters:
+        - $ref: '#/components/parameters/TournamentId'
+        - $ref: '#/components/parameters/MatchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionRegisterRequest'
+      responses:
+        '200':
+          description: 登録した立ち位置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Position'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    TournamentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: トーナメントID
+    MatchId:
+      name: matchId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: マッチID
+  responses:
+    BadRequest:
+      description: 不正なリクエスト
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: リソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: サーバーエラー
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    TournamentsResponse:
+      type: object
+      properties:
+        tournaments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tournament'
+    Tournament:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TournamentCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+    TournamentUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+    TournamentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Tournament'
+        - type: object
+          properties:
+            participants:
+              type: array
+              items:
+                $ref: '#/components/schemas/Participant'
+            matches:
+              type: array
+              items:
+                $ref: '#/components/schemas/Match'
+    ParticipantsResponse:
+      type: object
+      properties:
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participant'
+    Participant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ParticipantCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    MatchesResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+    Match:
+      type: object
+      properties:
+        id:
+          type: string
+        round:
+          type: integer
+        player1:
+          $ref: '#/components/schemas/Participant'
+        player2:
+          $ref: '#/components/schemas/Participant'
+        winner:
+          $ref: '#/components/schemas/Participant'
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MatchCreateRequest:
+      type: object
+      required:
+        - round
+        - player1Id
+        - player2Id
+      properties:
+        round:
+          type: integer
+        player1Id:
+          type: string
+        player2Id:
+          type: string
+    WinnerRegisterRequest:
+      type: object
+      required:
+        - winnerId
+      properties:
+        winnerId:
+          type: string
+    PositionsResponse:
+      type: object
+      properties:
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+    Position:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        participant:
+          $ref: '#/components/schemas/Participant'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PositionRegisterRequest:
+      type: object
+      required:
+        - participantId
+        - position
+      properties:
+        participantId:
+          type: string
+        position:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string 
