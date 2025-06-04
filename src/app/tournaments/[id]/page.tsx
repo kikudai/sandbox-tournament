@@ -627,14 +627,14 @@ export default function TournamentDetail() {
                       <span>vs</span>
                       <select
                         value={match.player2Id || ''}
-                        onChange={e => handleAssignmentChange(idx, 2, e.target.value || null)}
+                        onChange={e => handleAssignmentChange(idx, 2, e.target.value === 'BYE' ? null : e.target.value || null)}
                         className="border rounded px-2 py-1"
                       >
                         <option value="">未選択</option>
                         {tournament.participants.map(p => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
-                        <option value={null}>シード</option>
+                        <option value="BYE">シード</option>
                       </select>
                     </div>
                   ))}
