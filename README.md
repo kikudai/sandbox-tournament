@@ -84,6 +84,12 @@ npx prisma migrate dev --name init
 npm run dev
 ```
 
+## テストの実行
+
+```bash
+npm test
+```
+
 ## ライセンス
 
-MIT 
+MIT
